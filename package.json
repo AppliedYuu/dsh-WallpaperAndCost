@@ -23,6 +23,7 @@
   "files": [
     "lib/index.js",
     "lib/client.js",
+    "scripts/extract_scene_pkg.py",
     "cordis.patch.yml",
     "README.md"
   ]
