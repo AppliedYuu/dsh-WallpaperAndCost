@@ -7,6 +7,7 @@ A merged DSH web plugin combining **wallpaper customization** and the **DeepSeek
 ### 🎨 Wallpaper (壁纸)
 - 8 built-in curated gradients (暮色 / 深渊 / 晨曦 / 森林 / 星夜 / 暖阳 / 青空 / 石墨)
 - Upload your own images **at full original resolution** (no compression), stored in IndexedDB
+- **动态壁纸：上传 MP4/WebM 视频，自动静音循环播放**（铺底 `<video>` 元素，object-fit: cover）
 - Crop editor: drag to pan + zoom (100%–250%) with a live viewport-proportional preview
 - Independent **absolute opacity sliders (0–100%)** for the left sidebar, the conversation column and the right sidebar (dsh-better-sidebar panel, auto-hidden when that plugin is absent)
 - Wallpaper choice persists across restarts (localStorage + IndexedDB)
