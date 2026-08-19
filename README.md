@@ -29,6 +29,12 @@ A merged DSH web plugin combining **wallpaper customization** and the **DeepSeek
 - Platform token can be captured with a one-click bookmarklet + clipboard import (no console needed)
 - The DeepSeek API key never leaves the host (host-side routes only)
 
+### 🟢 OpenCode Go 用量 (rolling / weekly / monthly)
+- 会话头部新增一个 `Go` 按钮（与余额按钮并列于顶端）：默认只显示**滚动 / 周 / 月**三个用量的百分比
+- 点开后用**进度条**展示每个窗口用量，并显示各自的**重置时间**（平时隐藏，展开可见）
+- 数据来自 OpenCode Go 官方用量接口 `GET https://opencode.ai/zen/go/v1/usage`（Bearer 鉴权），由 host 端代理，key 与余额相同方式通过 `ctx.credentials.resolve("OPENCODE_GO_API_KEY")` 获取，**从不入源码/浏览器**
+- 该接口为社区发现的非官方文档化接口，响应结构可能随 OpenCode 变动；窗口解析做了兼容（`usage.` 前缀或裸窗口、`resetsAt` 或 `resetsInSeconds`）
+
 ## Install
 
 ```sh
@@ -49,8 +55,8 @@ Restart DSH afterwards.
 - Optional `DEEPSEEK_PLATFORM_TOKEN` (via the widget) for exact platform consumption figures
 
 ## Structure
-- `lib/index.js` — host half: balance/cost API routes (`/api/deepseek-balance`, `/api/deepseek-session-cost`) + workshop extraction routes (`/api/wallpaper-workshop/extract`, `/api/wallpaper-workshop/file`)
-- `lib/client.js` — browser half: wallpaper + balance widget + workshop extraction UI (no build step required)
+- `lib/index.js` — host half: balance/cost API routes (`/api/deepseek-balance`, `/api/deepseek-session-cost`) + workshop extraction routes (`/api/wallpaper-workshop/extract`, `/api/wallpaper-workshop/file`) + OpenCode Go usage route (`/api/opencode-go-usage`)
+- `lib/client.js` — browser half: wallpaper + balance widget + OpenCode usage widget + workshop extraction UI (no build step required)
 - `scripts/extract_scene_pkg.py` — standalone Wallpaper Engine `.pkg`/`.tex` extraction engine (called by the host route; also usable as a CLI)
 - `cordis.patch.yml` — bundle patch mounting the plugin row
 
