@@ -26,7 +26,7 @@ A merged DSH web plugin combining **wallpaper customization** and the **DeepSeek
 ### 💰 Balance & usage (余额与用量)
 - Balance button in the conversation header: balance, today's consumption, this session's token usage & estimated cost
 - Official DeepSeek CNY price table with peak/valley windows, per-model and per-window breakdown
-- Platform token can be captured with a one-click bookmarklet + clipboard import (no console needed)
+- Platform consumption (`DEEPSEEK_PLATFORM_TOKEN`) is read from DSH's credential store by the host (`ctx.credentials.resolve`), the same way `DEEPSEEK_API_KEY` and `OPENCODE_GO_API_KEY` are — no in-widget token capture
 - The DeepSeek API key never leaves the host (host-side routes only)
 
 ### 🟢 OpenCode Go 用量 (rolling / weekly / monthly)
@@ -52,7 +52,7 @@ Restart DSH afterwards.
 ## Requirements
 - DSH web profile
 - `DEEPSEEK_API_KEY` credential (设置 → 模型) for the balance feature
-- Optional `DEEPSEEK_PLATFORM_TOKEN` (via the widget) for exact platform consumption figures
+- Optional `DEEPSEEK_PLATFORM_TOKEN` (set in 设置 → 模型) for exact platform consumption figures
 
 ## Structure
 - `lib/index.js` — host half: balance/cost API routes (`/api/deepseek-balance`, `/api/deepseek-session-cost`) + workshop extraction routes (`/api/wallpaper-workshop/extract`, `/api/wallpaper-workshop/file`) + OpenCode Go usage route (`/api/opencode-go-usage`)
