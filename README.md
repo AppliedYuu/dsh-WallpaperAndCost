@@ -9,7 +9,7 @@ A merged DSH web plugin combining **wallpaper customization** and the **DeepSeek
 - Upload your own images **at full original resolution** (no compression), stored in IndexedDB
 - **动态壁纸：上传 MP4/WebM 视频，自动静音循环播放**（铺底 `<video>` 元素，object-fit: cover）
 - Crop editor: drag to pan + zoom (100%–250%) with a live viewport-proportional preview
-- Independent **absolute opacity sliders (0–100%)** for the left sidebar, the conversation column and the right sidebar (dsh-better-sidebar panel, auto-hidden when that plugin is absent)
+- Independent **absolute opacity sliders (0–100%)** for the left sidebar, the conversation column and the right sidebar — the right-sidebar slider now drives **both** the dsh-better-sidebar panel *and* DSH's official right sidebar (dsh-client-ui-sidebar-right, detected via `[data-sidebar-right-panel]`); the slider auto-appears whenever either sidebar is present
 - Wallpaper choice persists across restarts (localStorage + IndexedDB)
 - **创意工坊壁纸提取（服务器目录）**：输入 Wallpaper Engine 创意工坊条目文件夹的绝对路径（`…steamapps\workshop\content\431960\<id>`），由内置的 `scripts/extract_scene_pkg.py` 解析 `scene.pkg` / `.tex`（含 LZ4 解压、DXT/RGBA→PNG、内嵌 MP4），提取最佳壁纸供预览与下载。需要运行 DSH 的机器装有 Python 3（脚本为纯 Python，Pillow 可选）。
 
