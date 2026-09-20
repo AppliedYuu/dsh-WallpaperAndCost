@@ -12,6 +12,8 @@ A merged DSH web plugin combining **wallpaper customization** and the **DeepSeek
 - Independent **absolute opacity sliders (0–100%)** for the left sidebar, the conversation column and the right sidebar — the right-sidebar slider now drives **both** the dsh-better-sidebar panel *and* DSH's official right sidebar (dsh-client-ui-sidebar-right, detected via `[data-sidebar-right-panel]`); the slider auto-appears whenever either sidebar is present
 - Wallpaper choice persists across restarts (localStorage + IndexedDB)
 - **创意工坊壁纸提取（服务器目录）**：输入 Wallpaper Engine 创意工坊条目文件夹的绝对路径（`…steamapps\workshop\content\431960\<id>`），由内置的 `scripts/extract_scene_pkg.py` 解析 `scene.pkg` / `.tex`（含 LZ4 解压、DXT/RGBA→PNG、内嵌 MP4），提取最佳壁纸供预览与下载。需要运行 DSH 的机器装有 Python 3（脚本为纯 Python，Pillow 可选）。
+  - **桌面端支持「选择文件夹…」**：DSH Desktop（Windows）上可直接用系统原生文件夹选择器选取条目文件夹，自动填入绝对路径，避免手输/粘贴路径出错而报"文件夹不存在"。
+  - **路径自动规整 + 明确报错**：路径会先去空白、剥成对引号、展开 `~`，并校验是否为绝对路径；读取失败会区分「文件夹不存在」「没有权限读取该文件夹（含 Windows 受控文件夹访问拦截）」「路径不是文件夹」，不再把权限问题笼统报成"文件夹不存在"。
 
 ### 🔍 Wallpaper Engine 创意工坊提取脚本
 - 仓库自带独立脚本 `scripts/extract_scene_pkg.py`，可单独命令行使用：
