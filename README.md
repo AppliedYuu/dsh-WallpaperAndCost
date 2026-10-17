@@ -33,8 +33,10 @@ A merged DSH web plugin combining **wallpaper customization** and the **DeepSeek
 
 ### 🟢 OpenCode Go 用量 (rolling / weekly / monthly)
 - 会话头部新增一个 `Go` 按钮（与余额按钮并列于顶端）：默认只显示**滚动 / 周 / 月**三个用量的百分比
-- 点开后用**进度条**展示每个窗口用量，并显示各自的**重置时间**（平时隐藏，展开可见）
-- 数据来自 OpenCode Go 官方用量接口 `GET https://opencode.ai/zen/go/v1/usage`（Bearer 鉴权），由 host 端代理，key 与余额相同方式通过 `ctx.credentials.resolve("OPENCODE_GO_API_KEY")` 获取，**从不入源码/浏览器**
+- 点开后用**进度条**展示每个窗口用量，并显示各自的**重置时间**，以及上次刷新时间与实际使用的密钥名
+- **刷新时机跟随两条 Go 路由的请求**：`opencodego`（自建供应商）与 `opencode-go`（DSH 官方供应商）任一发出请求（会话事件里的 `assistant/message` 或 `request/header` 带 `provider`），宿主就把用量版本号 +1，前端下次轮询才去上游拉一次；没有请求时前端每 5 秒问的只是本地宿主，宿主直接回缓存（不一定打上游）。点开面板会强刷一次（`?force=1`）
+- 快照缓存 5 分钟保质、4 秒内合并连发的刷新；上游临时取不到时继续显示上次结果并给出提醒，不会把面板清空
+- 数据来自 OpenCode Go 官方用量接口 `GET https://opencode.ai/zen/go/v1/usage`（Bearer 鉴权），由 host 端代理，key 通过 `ctx.credentials.resolve` 按 `OPENCODEGO_API_KEY` → `OPENCODE_GO_API_KEY` 顺序解析（前者 401/403 时自动退回后者），**从不入源码/浏览器**
 - 该接口为社区发现的非官方文档化接口，响应结构可能随 OpenCode 变动；窗口解析做了兼容（`usage.` 前缀或裸窗口、`resetsAt` 或 `resetsInSeconds`）
 
 ## Install
@@ -55,9 +57,10 @@ Restart DSH afterwards.
 - DSH web profile
 - `DEEPSEEK_API_KEY` credential (设置 → 模型) for the balance feature
 - Optional `DEEPSEEK_PLATFORM_TOKEN` (set in 设置 → 模型) for exact platform consumption figures
+- `OPENCODEGO_API_KEY`（自建 `opencodego` 供应商）或 `OPENCODE_GO_API_KEY`（官方 `opencode-go` 供应商）之一，用于 Go 用量面板
 
 ## Structure
-- `lib/index.js` — host half: balance/cost API routes (`/api/deepseek-balance`, `/api/deepseek-session-cost`) + workshop extraction routes (`/api/wallpaper-workshop/extract`, `/api/wallpaper-workshop/file`) + OpenCode Go usage route (`/api/opencode-go-usage`)
+- `lib/index.js` — host half: balance/cost API routes (`/api/deepseek-balance`, `/api/deepseek-session-cost`) + workshop extraction routes (`/api/wallpaper-workshop/extract`, `/api/wallpaper-workshop/file`) + OpenCode Go usage route (`/api/opencode-go-usage`, 支持 `?force=1`；刷新由 `opencodego` / `opencode-go` 的会话请求驱动)
 - `lib/client.js` — browser half: wallpaper + balance widget + OpenCode usage widget + workshop extraction UI (no build step required)
 - `scripts/extract_scene_pkg.py` — standalone Wallpaper Engine `.pkg`/`.tex` extraction engine (called by the host route; also usable as a CLI)
 - `cordis.patch.yml` — bundle patch mounting the plugin row
