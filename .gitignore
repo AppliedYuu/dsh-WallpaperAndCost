@@ -20,5 +20,12 @@ __pycache__/
 *.tmp
 .tmp*
 
+# Screenshots dropped into the repo root by mistake (2.4MB one removed from the
+# index in db73ba9+1; keep the pattern so it never comes back). Scope: root only.
+/屏幕截图*.png
+/ScreenShot*.png
+/Screenshot*.png
+/截图*.png
+
 # NOTE: pricing.json is deliberately NOT ignored — it is the single source of
 # truth for model pricing and must ship with the package.
