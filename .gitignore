@@ -1,5 +1,24 @@
-﻿node_modules/
-*.log
-.DS_Store
+# Dependencies / build output
+node_modules/
 
+# Logs
+*.log
+
+# OS + editor junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Python (scripts/extract_scene_pkg.py may leave these behind)
 __pycache__/
+*.pyc
+
+# Local backups / temporary files (e.g. lib/index.js.bak-20261019)
+*.bak
+*.bak-*
+*.orig
+*.tmp
+.tmp*
+
+# NOTE: pricing.json is deliberately NOT ignored — it is the single source of
+# truth for model pricing and must ship with the package.

@@ -27,9 +27,39 @@ A merged DSH web plugin combining **wallpaper customization** and the **DeepSeek
 
 ### 💰 Balance & usage (余额与用量)
 - Balance button in the conversation header: balance, today's consumption, this session's token usage & estimated cost
-- Official DeepSeek CNY price table with peak/valley windows, per-model and per-window breakdown
+- Prices come from **`pricing.json`** (data, not code): regex model ids, an optional peak/off-peak split, CNY per million tokens — see [Model pricing](#model-pricing-pricingjson)
+- Per-model and per-window (peak/off-peak) breakdown in the popover
+- The per-session ledger is **durable**: a host restart no longer zeroes the token meter. It is written to `$DSH_HOME/storages/dsh-wallpaper-cost-sessions.json` and dropped only once that conversation is archived/deleted
 - Platform consumption (`DEEPSEEK_PLATFORM_TOKEN`) is read from DSH's credential store by the host (`ctx.credentials.resolve`), the same way `DEEPSEEK_API_KEY` and `OPENCODE_GO_API_KEY` are — no in-widget token capture
 - The DeepSeek API key never leaves the host (host-side routes only)
+
+### 🏷 Model pricing (`pricing.json`)
+
+The price table is one JSON file at the package root — editing it needs no code change and no rebuild; the host reloads it as soon as its mtime changes, and history is re-priced on the next replay.
+
+```jsonc
+{
+  "peakWindows": [{ "startHour": 9, "endHour": 12 }, { "startHour": 14, "endHour": 18 }],
+  "models": [
+    {
+      "match": "deepseek.*flash",     // regex, matched against the bare model id
+      "flags": "i",
+      "label": "deepseek flash 系列",
+      "peak": true,                   // true = peak + offPeak (6 numbers); false = one flat group (3 numbers)
+      "price": {
+        "peak":    { "cacheHit": 0.04, "cacheMiss": 2.0, "output": 8.0 },
+        "offPeak": { "cacheHit": 0.02, "cacheMiss": 1.0, "output": 4.0 }
+      }
+    }
+  ]
+}
+```
+
+- **Regex ids**: a vendor prefix (`deepseek-official/deepseek-v4-flash`) is stripped before matching, so `deepseek.*flash` covers `deepseek-flash`, `deepseek-v4-flash` and `deepseek-v4-flash-vision-exp` in one rule. Rules are tried in file order; the first match wins.
+- **`peak: false`** — a vendor that does not split peak/off-peak gets one group of three numbers (`cacheHit` 缓存命中, `cacheMiss` 缓存未命中, `output` 输出); the peak window is ignored for it.
+- **`peak: true`** — six numbers: `price.peak` + `price.offPeak`, chosen by the message's Beijing hour.
+- Units are **CNY per million tokens**. The window logic itself (hours from `peakWindows`, weekends always off-peak) stays in code because it is billing semantics, not price data.
+- A model absent from the table is counted as tokens only (`unpriced`) instead of being priced with a guess; a missing/broken file falls back to a built-in flash table so costs never silently drop to zero.
 
 ### 🟢 OpenCode Go 用量 (rolling / weekly / monthly)
 - 会话头部新增一个 `Go` 按钮（与余额按钮并列于顶端）：默认只显示**滚动 / 周 / 月**三个用量的百分比
@@ -62,8 +92,15 @@ Restart DSH afterwards.
 ## Structure
 - `lib/index.js` — host half: balance/cost API routes (`/api/deepseek-balance`, `/api/deepseek-session-cost`) + workshop extraction routes (`/api/wallpaper-workshop/extract`, `/api/wallpaper-workshop/file`) + OpenCode Go usage route (`/api/opencode-go-usage`, 支持 `?force=1`；刷新由 `opencodego` / `opencode-go` 的会话请求驱动)
 - `lib/client.js` — browser half: wallpaper + balance widget + OpenCode usage widget + workshop extraction UI (no build step required)
+- `pricing.json` — 模型计价表（正则 id、峰谷开关、CNY/百万 tokens），**唯一价格数据源**，改完热生效
 - `scripts/extract_scene_pkg.py` — standalone Wallpaper Engine `.pkg`/`.tex` extraction engine (called by the host route; also usable as a CLI)
 - `cordis.patch.yml` — bundle patch mounting the plugin row
+
+## Runtime files (`$DSH_HOME/storages/`)
+| File | Purpose |
+|---|---|
+| `deepseek-balance-widget-day.json` | 当日计量起点（余额差估算今日消费） |
+| `dsh-wallpaper-cost-sessions.json` | 分会话 token/费用账本：重启不清零，对话被归档/删除后由定时清理移除 |
 
 ## License
 MIT
