@@ -2,12 +2,13 @@
   "$comment": "dsh-WallpaperAndCost 模型计价表（唯一数据源，代码里不再写死价格）。改完保存即可热生效：宿主按 mtime 重载，历史费用会按新表重算。",
   "$fields": {
     "peakWindows": "高峰时段（北京时，整点，[startHour, endHour)），周末全天按低谷计算；这段逻辑在代码里，窗口在这里配。",
-    "models[].match": "模型 id 的正则（JS RegExp）。先按 '/' 切掉厂商前缀（deepseek-official/deepseek-v4-flash -> deepseek-v4-flash）再匹配，所以厂商命名不同也能命中。",
-    "models[].flags": "正则标志，默认 \"i\"（忽略大小写）。",
+    "models[].match": "模型 id 的正则（JS RegExp）。*** 不锚定首尾：只要 id 里包含 匹配子串 就算命中，所以不需要写 .* 包裹（写了也不会改变结果）。先按 '/' 切掉厂商前缀（deepseek-official/deepseek-v4-flash -> deepseek-v4-flash）再匹配。",
+    "models[].flags": "正则标志，省略时默认 \"i\"（忽略大小写）；写成 \"\" 会变成大小写敏感。",
     "models[].label": "仅用于界面/日志展示。",
     "models[].peak": "是否区分峰谷。false = 只给 price 一组三个单价；true = 给 price.peak + price.offPeak 两组共六个单价。",
     "models[].price": "单价，单位 CNY / 百万 tokens。字段含义：cacheHit = 缓存命中输入，cacheMiss = 缓存未命中输入，output = 输出。",
-    "models[].note": "备注，可省略。"
+    "models[].note": "备注，可省略。",
+    "order": "规则按本文件顺序匹配，先命中先得；flash 在前、pro 在后（两种 id 不会互相误命中）。"
   },
   "version": 1,
   "peakWindows": [
@@ -24,6 +25,17 @@
       "price": {
         "peak": { "cacheHit": 0.04, "cacheMiss": 2.0, "output": 8.0 },
         "offPeak": { "cacheHit": 0.02, "cacheMiss": 1.0, "output": 4.0 }
+      }
+    },
+    {
+      "match": "deepseek.*pro",
+      "flags": "i",
+      "label": "deepseek pro 系列",
+      "note": "高峰价 = 低谷价 × 2：命中 0.15→0.30、未命中 4.5→9.0、输出 13.5→27.0。",
+      "peak": true,
+      "price": {
+        "peak": { "cacheHit": 0.3, "cacheMiss": 9.0, "output": 27.0 },
+        "offPeak": { "cacheHit": 0.15, "cacheMiss": 4.5, "output": 13.5 }
       }
     }
   ]
