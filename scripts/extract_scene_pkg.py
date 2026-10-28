@@ -352,6 +352,168 @@ VIDEO_RE = re.compile(r"\.(mp4|webm)$", re.IGNORECASE)
 DIRECT_IMG_RE = re.compile(r"^wallpaper\.(jpg|jpeg|png)$", re.IGNORECASE)
 
 
+# ---------------------------------------------------------------------------
+# 媒体原样导出：同卷硬链接 + 真实参数报告
+#
+# 这一层解决两件事：
+#   1) 直接落在工坊文件夹里的 mp4 不再复制一份（320MB 的源以前会被复制成两份），
+#      同卷用硬链接，跨卷才退回复制；
+#   2) 日志里打印分辨率/帧率/时长/编码/码率，让"有没有被压缩、有没有掉帧"可核对
+#      —— 这个脚本从头到尾都不重编码，导出的就是原始字节。
+# ---------------------------------------------------------------------------
+
+def _link_or_copy(src: str, dst: str) -> str:
+    """同卷优先硬链接（不额外占空间、也不复制一份大文件），跨卷失败则退回复制。"""
+    try:
+        if os.path.exists(dst):
+            os.remove(dst)
+    except OSError:
+        pass
+    try:
+        os.link(src, dst)
+        return "硬链接，未复制"
+    except OSError:
+        shutil.copy2(src, dst)
+        return "复制（跨卷或文件系统不支持硬链接）"
+
+
+def _mp4_children(buf: bytes, start: int, end: int):
+    """遍历 mp4 盒的子盒：yield (类型, 载荷起点, 载荷终点)。"""
+    pos = start
+    n = min(end, len(buf))
+    while pos + 8 <= n:
+        size = struct.unpack(">I", buf[pos:pos + 4])[0]
+        typ = buf[pos + 4:pos + 8].decode("latin1", "replace")
+        if size == 1:
+            if pos + 16 > n:
+                return
+            size = struct.unpack(">Q", buf[pos + 8:pos + 16])[0]
+        if size < 8:
+            return
+        yield typ, pos + 8, min(pos + size, n)
+        pos += size
+
+
+def read_mp4_meta(path: str):
+    """读 mp4 的 moov，返回 {w,h,fps,duration,codec}；解析不了返回 None。
+
+    只 seek 到 moov 再读那一段（通常几 MB），不把整个文件读进内存。
+    """
+    try:
+        total = os.path.getsize(path)
+        with open(path, "rb") as f:
+            moov = None
+            pos = 0
+            while pos + 8 <= total:
+                f.seek(pos)
+                head = f.read(16)
+                if len(head) < 8:
+                    break
+                size = struct.unpack(">I", head[:4])[0]
+                typ = head[4:8].decode("latin1", "replace")
+                if size == 1:
+                    if len(head) < 16:
+                        break
+                    size = struct.unpack(">Q", head[8:16])[0]
+                if size < 8:
+                    break
+                if typ == "moov":
+                    moov = (pos + 8, min(pos + size, total))
+                    break
+                pos += size
+            if moov is None:
+                return None
+            f.seek(moov[0])
+            buf = f.read(moov[1] - moov[0])
+    except Exception:
+        return None
+
+    def first(name, start, end):
+        for t, s, e in _mp4_children(buf, start, end):
+            if t == name:
+                return s, e
+        return None
+
+    meta = {}
+    for typ, ts, te in _mp4_children(buf, 0, len(buf)):
+        if typ != "trak":
+            continue
+        mdia = first("mdia", ts, te)
+        if not mdia:
+            continue
+        hdlr = first("hdlr", mdia[0], mdia[1])
+        if not hdlr:
+            continue
+        handler = buf[hdlr[0] + 8:hdlr[0] + 12].decode("latin1", "replace")
+        if handler != "vide":
+            continue
+        tkhd = first("tkhd", ts, te)
+        mdhd = first("mdhd", mdia[0], mdia[1])
+        minf = first("minf", mdia[0], mdia[1])
+        stbl = first("stbl", minf[0], minf[1]) if minf else None
+        if tkhd:
+            ver = buf[tkhd[0]]
+            off = tkhd[0] + (76 if ver == 0 else 88)
+            if off + 8 <= tkhd[1]:
+                meta["w"] = struct.unpack(">I", buf[off:off + 4])[0] / 65536.0
+                meta["h"] = struct.unpack(">I", buf[off + 4:off + 8])[0] / 65536.0
+        if mdhd:
+            ver = buf[mdhd[0]]
+            if ver == 0:
+                timescale = struct.unpack(">I", buf[mdhd[0] + 12:mdhd[0] + 16])[0]
+                duration = struct.unpack(">I", buf[mdhd[0] + 16:mdhd[0] + 20])[0]
+            else:
+                timescale = struct.unpack(">I", buf[mdhd[0] + 20:mdhd[0] + 24])[0]
+                duration = struct.unpack(">Q", buf[mdhd[0] + 24:mdhd[0] + 32])[0]
+            if timescale:
+                meta["duration"] = duration / timescale
+                meta["_timescale"] = timescale
+                meta["_duration_units"] = duration
+        if stbl:
+            stts = first("stts", stbl[0], stbl[1])
+            if stts:
+                count = struct.unpack(">I", buf[stts[0] + 4:stts[0] + 8])[0]
+                samples = 0
+                for k in range(count):
+                    p = stts[0] + 8 + k * 8
+                    if p + 4 > stts[1]:
+                        break
+                    samples += struct.unpack(">I", buf[p:p + 4])[0]
+                meta["_frames"] = samples
+            stsd = first("stsd", stbl[0], stbl[1])
+            if stsd and stsd[0] + 16 <= stsd[1]:
+                meta["codec"] = buf[stsd[0] + 12:stsd[0] + 16].decode("latin1", "replace")
+        break
+
+    if meta.get("duration") and meta.get("_frames"):
+        meta["fps"] = meta["_frames"] / meta["duration"]
+    return meta or None
+
+
+def describe_media(path: str, how: str = ""):
+    """打印产物的真实参数，用来核对"没有转码、没有降帧"。"""
+    try:
+        size = os.path.getsize(path)
+    except OSError:
+        return
+    tag = f"  [{how}]" if how else ""
+    print(f"      {os.path.basename(path)}  {size:,} B ({size / 1048576:.1f} MB){tag}")
+    if not path.lower().endswith((".mp4", ".mov", ".m4v")):
+        return
+    meta = read_mp4_meta(path)
+    if not meta:
+        print("      !! 读不到 mp4 头信息（文件可能不完整）")
+        return
+    w = meta.get("w") or 0
+    h = meta.get("h") or 0
+    fps = meta.get("fps") or 0
+    dur = meta.get("duration") or 0
+    codec = meta.get("codec") or "?"
+    mbps = (size * 8 / dur / 1e6) if dur else 0
+    print(f"      {int(w)}x{int(h)}  {fps:.2f} fps  {dur:.2f} s  {codec}  {mbps:.1f} Mbps")
+    print("      未转码：分辨率 / 帧率 / 编码 / 码率 均为原始值")
+
+
 def tex_to_media(tex_bytes: bytes):
     """解析一个 .tex, 返回可展示媒体列表 [(kind, data, size)] (kind: mp4/jpg/png/...)。"""
     try:
@@ -407,8 +569,9 @@ def extract_folder(folder: str, outdir: str):
         if VIDEO_RE.search(fn) or DIRECT_IMG_RE.search(fn):
             ext = os.path.splitext(fn)[1].lower()
             dst = os.path.join(outdir, name + ext)
-            shutil.copy2(fp, dst)
+            how = _link_or_copy(fp, dst)
             print(f"  [直接文件] {fn} -> {os.path.basename(dst)}")
+            describe_media(dst, how)
             return [dst]
 
     # 2) scene.pkg 解包
@@ -425,6 +588,7 @@ def extract_folder(folder: str, outdir: str):
             with open(dst, "wb") as f:
                 f.write(data)
             print(f"  [pkg→{kind}] 最佳壁纸 {os.path.basename(dst)} ({len(data):,} B)")
+            describe_media(dst, "从 pkg 原样解包")
             return [dst]
         print("  !! pkg 内未找到可直接显示的图片/视频 (多为 DXT 场景/傀儡壁纸)")
 
